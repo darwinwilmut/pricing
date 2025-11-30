@@ -3191,7 +3191,21 @@
 
                             // Show toast notification
                             if (window.showSyncToast) {
-                                const action = timerState.currentStatus === 'working' ? 'Timer started' : 'Break started';
+                                let action = 'Timer updated';
+
+                                // Determine what happened
+                                if (!window.sessionActive) {
+                                    // Timer wasn't running locally, so it started on another device
+                                    action = timerState.currentStatus === 'working' ? 'Timer started' : 'Break started';
+                                } else {
+                                    // Timer was already running, check if status changed
+                                    if (window.currentStatus === 'working' && timerState.currentStatus === 'on-break') {
+                                        action = 'Break started';
+                                    } else if (window.currentStatus === 'on-break' && timerState.currentStatus === 'working') {
+                                        action = 'Work resumed';
+                                    }
+                                }
+
                                 window.showSyncToast(`${action} on another device`);
                             }
                         }
