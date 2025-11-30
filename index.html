@@ -830,6 +830,49 @@
             font-style: italic;
         }
 
+        /* Toast Notification for Real-Time Sync */
+        .sync-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInUp 0.3s ease, fadeOut 0.3s ease 2.7s;
+            pointer-events: none;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+        }
+
+        .sync-toast::before {
+            content: '⚡';
+            font-size: 18px;
+        }
+
         /* PIN Modal Styles */
         .pin-modal {
             position: fixed;
@@ -2152,21 +2195,71 @@
 
                 btn.classList.add('active');
                 document.getElementById(`${tab}-summary`).classList.add('active');
+
+                // Log action to Firebase
+                if (window.logAction) {
+                    window.logAction('ui_tab_switch', {
+                        timestamp: new Date().toISOString(),
+                        tab: tab
+                    });
+                }
             });
         });
 
-        // Event Listeners
-        startBtn.addEventListener('click', startSession);
-        stopBtn.addEventListener('click', stopSession);
+        // Event Listeners with real-time sync
+        startBtn.addEventListener('click', () => {
+            console.log('▶️ Start button clicked');
+            startSession();
+            // Immediate sync after start
+            if (window.syncTimerStateToCloud) {
+                setTimeout(() => window.syncTimerStateToCloud(), 100);
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            console.log('⏹️ Stop button clicked');
+            stopSession();
+            // Immediate sync after stop
+            if (window.clearTimerStateFromCloud) {
+                setTimeout(() => window.clearTimerStateFromCloud(), 100);
+            }
+        });
+
         resetBtn.addEventListener('click', function(e) {
-            console.log('Reset button event fired');
+            console.log('🔄 Reset button clicked');
             e.preventDefault();
             e.stopPropagation();
             resetTimer();
+            // Immediate sync after reset
+            if (window.clearTimerStateFromCloud) {
+                setTimeout(() => window.clearTimerStateFromCloud(), 100);
+            }
         });
-        calculateBtn.addEventListener('click', calculateAmount);
-        workBtn.addEventListener('click', resumeWork);
-        breakBtn.addEventListener('click', takeBreak);
+
+        calculateBtn.addEventListener('click', () => {
+            console.log('💾 Calculate/Save button clicked');
+            calculateAmount();
+            // Sessions are already synced in saveSession function
+        });
+
+        workBtn.addEventListener('click', () => {
+            console.log('▶️ Resume Work button clicked');
+            resumeWork();
+            // Immediate sync after resume
+            if (window.syncTimerStateToCloud) {
+                setTimeout(() => window.syncTimerStateToCloud(), 100);
+            }
+        });
+
+        breakBtn.addEventListener('click', () => {
+            console.log('⏸️ Break button clicked');
+            takeBreak();
+            // Immediate sync after break
+            if (window.syncTimerStateToCloud) {
+                setTimeout(() => window.syncTimerStateToCloud(), 100);
+            }
+        });
+
         clearHistoryBtn.addEventListener('click', clearHistory);
 
         // Initialize
@@ -2268,6 +2361,9 @@
         let isOnline = navigator.onLine;
         let unsubscribeSessions = null;
         let unsubscribeTimerState = null;
+        let unsubscribeSettings = null;
+        let isLocalUpdate = false; // Flag to prevent sync loops
+        let lastSyncedState = null; // Track last synced state
 
         // DOM elements
         const syncIndicator = document.getElementById('syncIndicator');
@@ -2578,6 +2674,32 @@
         window.logAction = logAction;
         window.logTimerStateSnapshot = logTimerStateSnapshot;
 
+        // ============================================
+        // TOAST NOTIFICATION FOR REAL-TIME SYNC
+        // ============================================
+        function showSyncToast(message) {
+            // Remove any existing toast
+            const existingToast = document.querySelector('.sync-toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            // Create new toast
+            const toast = document.createElement('div');
+            toast.className = 'sync-toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 3000);
+        }
+
+        window.showSyncToast = showSyncToast;
+
         // Monitor online/offline status
         window.addEventListener('online', () => {
             isOnline = true;
@@ -2747,13 +2869,23 @@
                     hourlyRate: window.HOURLY_RATE_INR || 1000,
                     theme: document.body.classList.contains('dark-mode') ? 'dark' : 'light',
                     soundEnabled: window.soundEnabled !== undefined ? window.soundEnabled : true,
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp(),
+                    deviceId: localStorage.getItem('deviceId') || generateDeviceId()
                 };
+
+                // Set flag to ignore next snapshot
+                isLocalUpdate = true;
 
                 await setDoc(doc(db, `users/${userId}/settings`, 'preferences'), settings);
                 updateSyncStatus('synced', 'Synced');
+
+                // Reset flag
+                setTimeout(() => {
+                    isLocalUpdate = false;
+                }, 500);
             } catch (error) {
                 console.error('Error syncing settings:', error);
+                isLocalUpdate = false;
             }
         };
 
@@ -2761,12 +2893,12 @@
         window.syncTimerStateToCloud = async function() {
             console.log('syncTimerStateToCloud called');
             console.log('userId:', userId, 'isOnline:', isOnline);
-            
+
             if (!userId) {
                 console.error('❌ Cannot sync timer state: No Firebase userId');
                 return;
             }
-            
+
             if (!isOnline) {
                 console.warn('⚠️ Cannot sync timer state: Offline');
                 return;
@@ -2782,22 +2914,45 @@
                 workSeconds: window.workSeconds || 0,
                 totalBreakTime: window.totalBreakTime || 0,
                 notes: document.getElementById('sessionNotes')?.value || '',
-                updatedAt: serverTimestamp()
+                updatedAt: serverTimestamp(),
+                deviceId: localStorage.getItem('deviceId') || generateDeviceId() // Add device ID
             };
 
             console.log('🔄 Syncing timer state to Firebase:', timerState);
+
+            // Store last synced state
+            lastSyncedState = JSON.stringify(timerState);
+
+            // Set flag to ignore next snapshot update (it's our own update)
+            isLocalUpdate = true;
 
             // Non-blocking sync
             setDoc(doc(db, `users/${userId}/state`, 'currentTimer'), timerState)
                 .then(() => {
                     console.log('✅ Timer state successfully synced to Firebase!');
-                    updateSyncStatus('synced', 'Timer Synced');
+                    updateSyncStatus('synced', 'Synced');
+
+                    // Reset flag after a short delay
+                    setTimeout(() => {
+                        isLocalUpdate = false;
+                    }, 500);
                 })
                 .catch(error => {
                     console.error('❌ Error syncing timer state to Firebase:', error);
                     updateSyncStatus('offline', 'Sync Failed');
+                    isLocalUpdate = false;
                 });
         };
+
+        // Generate unique device ID
+        function generateDeviceId() {
+            let deviceId = localStorage.getItem('deviceId');
+            if (!deviceId) {
+                deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('deviceId', deviceId);
+            }
+            return deviceId;
+        }
 
         // Load data from cloud
         async function syncFromCloud() {
@@ -2952,30 +3107,47 @@
             unsubscribeTimerState = onSnapshot(
                 doc(db, `users/${userId}/state`, 'currentTimer'),
                 (docSnapshot) => {
+                    // Ignore if this is our own update
+                    if (isLocalUpdate) {
+                        console.log('⏭️ Skipping snapshot - this was our own update');
+                        return;
+                    }
+
                     if (!docSnapshot.exists()) {
                         console.log('ℹ️ No active timer state in cloud');
                         return;
                     }
 
                     const timerState = docSnapshot.data();
-                    console.log('🔔 Timer state update received from cloud:', timerState);
+                    const currentDeviceId = localStorage.getItem('deviceId') || generateDeviceId();
 
-                    // Only update if this is from another device (not our own update)
-                    const cloudTimestamp = timerState.timerStartTime;
-                    const localTimestamp = window.timerStartTime ? window.timerStartTime.toISOString() : null;
+                    // Ignore updates from this device
+                    if (timerState.deviceId === currentDeviceId) {
+                        console.log('⏭️ Skipping snapshot - same device');
+                        return;
+                    }
 
-                    // If we have a local timer running and cloud timer is different, cloud takes precedence
+                    console.log('🔔 Timer state update from another device:', timerState);
+
+                    // Check if timer is active in cloud
                     if (timerState.sessionActive && timerState.timerStartTime) {
                         const cloudTime = new Date(timerState.timerStartTime).getTime();
                         const localTime = window.timerStartTime ? window.timerStartTime.getTime() : 0;
 
-                        // Only update if cloud state is different (allowing 1 second tolerance)
-                        if (Math.abs(cloudTime - localTime) > 1000 || window.currentStatus !== timerState.currentStatus) {
+                        // Check if we need to sync (different time or different status)
+                        const needsSync = !window.sessionActive ||
+                                        Math.abs(cloudTime - localTime) > 2000 ||
+                                        window.currentStatus !== timerState.currentStatus;
+
+                        if (needsSync) {
                             console.log('🔄 Syncing timer from another device...');
-                            console.log('Cloud time:', cloudTime, 'Local time:', localTime);
+                            console.log('Cloud time:', new Date(cloudTime).toISOString());
+                            console.log('Local time:', window.timerStartTime ? window.timerStartTime.toISOString() : 'none');
+                            console.log('Cloud status:', timerState.currentStatus);
+                            console.log('Local status:', window.currentStatus);
 
                             // Stop current session if running
-                            if (window.sessionActive) {
+                            if (window.sessionActive && interval) {
                                 clearInterval(interval);
                             }
 
@@ -3011,17 +3183,42 @@
                             // Animate restoration
                             animateTimerRestore();
 
-                            console.log('✅ Timer synced from cloud successfully!');
+                            console.log('✅ Timer synced from another device!');
 
                             // Show notification
-                            updateSyncStatus('synced', 'Timer synced!');
+                            updateSyncStatus('synced', 'Synced from device');
                             setTimeout(() => updateSyncStatus('synced', 'Synced'), 2000);
+
+                            // Show toast notification
+                            if (window.showSyncToast) {
+                                const action = timerState.currentStatus === 'working' ? 'Timer started' : 'Break started';
+                                window.showSyncToast(`${action} on another device`);
+                            }
                         }
                     } else if (!timerState.sessionActive && window.sessionActive) {
                         // Timer was stopped on another device
                         console.log('🛑 Timer stopped on another device, stopping locally...');
-                        stopSession();
+
+                        // Stop the session
+                        if (window.sessionActive) {
+                            window.sessionActive = false;
+                            if (interval) {
+                                clearInterval(interval);
+                                interval = null;
+                            }
+                            updateStatus('idle');
+                            document.getElementById('startBtn').disabled = false;
+                            document.getElementById('stopBtn').disabled = true;
+                            document.getElementById('breakBtn').disabled = true;
+                            document.getElementById('workBtn').disabled = true;
+                        }
+
                         console.log('✅ Local timer stopped to match cloud state');
+
+                        // Show toast notification
+                        if (window.showSyncToast) {
+                            window.showSyncToast('Timer stopped on another device');
+                        }
                     }
                 },
                 (error) => {
@@ -3044,12 +3241,28 @@
 
                     console.log(`📥 Synced ${sessions.length} sessions from cloud`);
 
+                    // Check if this is a change (not initial load)
+                    const currentSessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+                    const hasChanges = JSON.stringify(currentSessions) !== JSON.stringify(sessions);
+
                     // Update localStorage and UI
                     localStorage.setItem('sessions', JSON.stringify(sessions));
                     window.displaySessions();
                     window.updateSummaries();
 
                     updateSyncStatus('synced', 'Synced');
+
+                    // Show toast if sessions changed
+                    if (hasChanges && window.showSyncToast) {
+                        const diff = sessions.length - currentSessions.length;
+                        if (diff > 0) {
+                            window.showSyncToast(`${diff} new session(s) from another device`);
+                        } else if (diff < 0) {
+                            window.showSyncToast(`Session deleted on another device`);
+                        } else {
+                            window.showSyncToast('Session updated on another device');
+                        }
+                    }
                 },
                 (error) => {
                     console.error('❌ Error in sessions listener:', error);
@@ -3060,24 +3273,43 @@
             // 3. REAL-TIME SETTINGS SYNC
             // ============================================
             console.log('⚙️ Setting up settings listener...');
-            const unsubscribeSettings = onSnapshot(
+            unsubscribeSettings = onSnapshot(
                 doc(db, `users/${userId}/settings`, 'preferences'),
                 (docSnapshot) => {
+                    // Ignore if this is our own update
+                    if (isLocalUpdate) {
+                        console.log('⏭️ Skipping settings snapshot - this was our own update');
+                        return;
+                    }
+
                     if (!docSnapshot.exists()) {
                         console.log('ℹ️ No settings found in cloud');
                         return;
                     }
 
                     const settings = docSnapshot.data();
-                    console.log('🔔 Settings update received from cloud:', settings);
+                    const currentDeviceId = localStorage.getItem('deviceId') || generateDeviceId();
+
+                    // Ignore updates from this device
+                    if (settings.deviceId === currentDeviceId) {
+                        console.log('⏭️ Skipping settings snapshot - same device');
+                        return;
+                    }
+
+                    console.log('🔔 Settings update from another device:', settings);
 
                     // Update hourly rate
                     if (settings.hourlyRate && settings.hourlyRate !== window.HOURLY_RATE_INR) {
-                        console.log(`💰 Hourly rate updated: ₹${settings.hourlyRate}`);
+                        console.log(`💰 Hourly rate synced from another device: ₹${settings.hourlyRate}`);
                         window.HOURLY_RATE_INR = settings.hourlyRate;
                         localStorage.setItem('hourlyRate', settings.hourlyRate);
                         document.getElementById('rateInfo').textContent = `₹${settings.hourlyRate.toLocaleString()} per hour`;
                         window.updateSummaries();
+
+                        // Show toast
+                        if (window.showSyncToast) {
+                            window.showSyncToast(`Rate changed to ₹${settings.hourlyRate}/hr`);
+                        }
                     }
 
                     // Update theme
@@ -3085,21 +3317,31 @@
                         const isDark = settings.theme === 'dark';
                         const currentlyDark = document.body.classList.contains('dark-mode');
                         if (isDark !== currentlyDark) {
-                            console.log(`🎨 Theme updated: ${settings.theme}`);
+                            console.log(`🎨 Theme synced from another device: ${settings.theme}`);
                             document.body.classList.toggle('dark-mode');
                             document.getElementById('themeToggle').textContent = isDark ? '☀️' : '🌙';
                             localStorage.setItem('theme', settings.theme);
+
+                            // Show toast
+                            if (window.showSyncToast) {
+                                window.showSyncToast(`Theme switched to ${settings.theme} mode`);
+                            }
                         }
                     }
 
                     // Update sound
                     if (settings.soundEnabled !== undefined && settings.soundEnabled !== window.soundEnabled) {
-                        console.log(`🔊 Sound updated: ${settings.soundEnabled}`);
+                        console.log(`🔊 Sound synced from another device: ${settings.soundEnabled}`);
                         window.soundEnabled = settings.soundEnabled;
                         const soundToggle = document.getElementById('soundToggle');
                         soundToggle.textContent = settings.soundEnabled ? '🔊' : '🔇';
                         soundToggle.classList.toggle('muted', !settings.soundEnabled);
                         localStorage.setItem('soundEnabled', settings.soundEnabled);
+
+                        // Show toast
+                        if (window.showSyncToast) {
+                            window.showSyncToast(`Sound ${settings.soundEnabled ? 'enabled' : 'disabled'}`);
+                        }
                     }
                 },
                 (error) => {
