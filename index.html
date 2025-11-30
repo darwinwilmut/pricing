@@ -45,7 +45,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg-color);
             min-height: 100vh;
-            padding: 20px;
+            padding: 30px 20px 20px 20px; /* just enough for fixed controls */
             transition: background 0.3s ease;
         }
 
@@ -68,8 +68,8 @@
 
         .theme-toggle {
             position: fixed;
-            top: 15px;
-            right: 15px;
+            top: 10px;
+            right: 10px;
             background: var(--accent-color);
             border: none;
             padding: 8px 12px;
@@ -77,7 +77,7 @@
             cursor: pointer;
             font-size: 16px;
             transition: transform 0.3s ease, background 0.3s ease;
-            z-index: 1000;
+            z-index: 1001;
             box-shadow: 0 2px 10px var(--shadow);
         }
 
@@ -87,8 +87,8 @@
 
         .sound-toggle {
             position: fixed;
-            top: 15px;
-            right: 70px;
+            top: 10px;
+            right: 65px;
             background: var(--accent-color);
             border: none;
             padding: 8px 12px;
@@ -96,7 +96,7 @@
             cursor: pointer;
             font-size: 16px;
             transition: transform 0.3s ease, background 0.3s ease;
-            z-index: 1000;
+            z-index: 1001;
             box-shadow: 0 2px 10px var(--shadow);
         }
 
@@ -110,14 +110,14 @@
 
         .sync-indicator {
             position: fixed;
-            top: 15px;
-            right: 135px;
+            top: 10px;
+            right: 120px;
             background: var(--accent-color);
             border: none;
             padding: 8px 12px;
             border-radius: 50px;
             font-size: 14px;
-            z-index: 1000;
+            z-index: 1001;
             box-shadow: 0 2px 10px var(--shadow);
             color: white;
             font-weight: 600;
@@ -845,41 +845,52 @@
             }
 
             .theme-toggle {
-                top: 10px;
-                right: 10px;
+                position: fixed !important;
+                top: 55px !important;
+                right: 10px !important;
                 padding: 6px 10px;
                 font-size: 14px;
+                z-index: 1000;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 6px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
 
             .sound-toggle {
-                top: 10px;
-                right: 55px;
+                position: fixed !important;
+                top: 55px !important;
+                right: 55px !important;
                 padding: 6px 10px;
                 font-size: 14px;
+                z-index: 1000;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 6px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
 
             .sync-indicator {
-                top: 10px;
-                right: 10px;
-                left: 10px;
-                width: calc(100% - 20px);
+                position: fixed !important;
+                top: 10px !important;
+                right: 10px !important;
+                left: 10px !important;
+                width: calc(100% - 20px) !important;
                 text-align: center;
                 font-size: 12px;
                 padding: 6px 10px;
                 justify-content: center;
+                z-index: 1000;
+                background: rgba(255, 255, 255, 0.95) !important;
+                backdrop-filter: blur(10px);
+                border-radius: 6px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
 
-            .theme-toggle,
-            .sound-toggle {
-                top: 55px;
-            }
-
-            .theme-toggle {
-                right: 10px;
-            }
-
-            .sound-toggle {
-                right: 55px;
+            .dark-mode .theme-toggle,
+            .dark-mode .sound-toggle,
+            .dark-mode .sync-indicator {
+                background: rgba(40, 44, 52, 0.95) !important;
             }
 
             h1 {
@@ -1395,19 +1406,32 @@
                 updateTimerFromTimestamps();
 
                 // Start the display update interval (more responsive)
+                if (interval) {
+                    console.warn('⚠️ Clearing existing interval before starting new one');
+                    clearInterval(interval);
+                }
                 interval = setInterval(() => {
                     updateTimerFromTimestamps();
                 }, 100);
+                console.log('✅ Timer interval started successfully');
                 
                 // Immediately sync to cloud
+                console.log('Timer started - attempting to sync to Firebase...');
                 if (window.syncTimerStateToCloud) {
                     window.syncTimerStateToCloud();
+                    console.log('Firebase sync function called');
+                } else {
+                    console.error('Firebase sync function NOT AVAILABLE!');
                 }
             }
         }
 
         function stopSession() {
             if (window.sessionActive) {
+                // Add debugging to track unexpected stops
+                console.trace('🛑 TIMER STOPPED - Call stack:');
+                console.log('Timer stopped at:', new Date().toISOString());
+                
                 const now = new Date();
                 
                 // Calculate final times
@@ -1485,8 +1509,8 @@
             }
         }
 
-        function resetTimer() {
-            console.log('Reset button clicked');
+        function resetTimer(keepResultBanner = false) {
+            console.log('Reset timer called, keepResultBanner:', keepResultBanner);
             
             // Stop any active session first
             if (window.sessionActive) {
@@ -1518,7 +1542,12 @@
             workTimeDisplay.textContent = '00:00:00';
             breakTimeDisplay.textContent = '00:00:00';
             billableTimeDisplay.textContent = '00:00:00';
-            result.classList.remove('show');
+            
+            // Only hide result banner if not preserving it
+            if (!keepResultBanner) {
+                result.classList.remove('show');
+            }
+            
             document.getElementById('sessionNotes').value = '';
             
             // Clear from cloud
@@ -1526,8 +1555,10 @@
                 window.clearTimerStateFromCloud();
             }
             
-            // Play reset sound
-            playSound('success');
+            // Play reset sound only if manually triggered (not after save)
+            if (!keepResultBanner) {
+                playSound('success');
+            }
             
             console.log('Timer reset completed - all values set to 0');
         }
@@ -1562,9 +1593,14 @@
             result.classList.add('show');
             playSound('success');
 
-            // Reset after showing result (1 minute display)
+            // Reset timer immediately after saving (but keep result banner visible)
             setTimeout(() => {
-                resetTimer();
+                resetTimer(true); // Keep the result banner visible
+            }, 1000);
+            
+            // Hide result banner after 1 minute display
+            setTimeout(() => {
+                result.classList.remove('show');
             }, 60000);
         }
 
@@ -1588,9 +1624,17 @@
             window.displaySessions();
             window.updateSummaries();
 
-            // Sync to cloud
+            // Sync to cloud with better error handling
+            console.log('Attempting to sync session to Firebase...', session);
             if (window.syncSessionToCloud) {
-                window.syncSessionToCloud(session);
+                try {
+                    window.syncSessionToCloud(session);
+                    console.log('Session sync initiated successfully');
+                } catch (error) {
+                    console.error('Failed to initiate session sync:', error);
+                }
+            } else {
+                console.warn('Firebase sync function not available - session only saved locally');
             }
         }
 
@@ -1707,21 +1751,42 @@
             window.displaySessions(e.target.value);
         });
 
-        function clearHistory() {
-            if (confirm('Are you sure you want to clear all session history? This cannot be undone.')) {
+        async function clearHistory() {
+            if (confirm('Are you sure you want to clear all session history? This will delete ALL sessions from both local storage and Firebase. This cannot be undone.')) {
                 // Get all session IDs before clearing
                 const sessions = getSessionsFromStorage();
+                
+                console.log(`Clearing ${sessions.length} sessions from history and Firebase...`);
 
+                // Clear local storage first
                 localStorage.removeItem('sessions');
+                localStorage.removeItem('lastEarned'); // Clear last earned too
                 searchBox.value = '';
+                document.getElementById('lastEarned').textContent = 'Last Earned: ₹0.00'; // Reset display
                 window.displaySessions();
                 window.updateSummaries();
 
-                // Delete all from cloud
-                if (window.deleteSessionFromCloud) {
-                    sessions.forEach(session => {
-                        window.deleteSessionFromCloud(session.id);
-                    });
+                // Delete all from Firebase cloud
+                if (window.deleteSessionFromCloud && sessions.length > 0) {
+                    try {
+                        // Delete each session from Firebase
+                        const deletePromises = sessions.map(session => 
+                            window.deleteSessionFromCloud(session.id)
+                        );
+                        
+                        await Promise.all(deletePromises);
+                        console.log('All sessions successfully deleted from Firebase');
+                        
+                        // Show success message
+                        alert(`✅ Successfully cleared ${sessions.length} sessions from both local storage and Firebase!`);
+                    } catch (error) {
+                        console.error('Error deleting sessions from Firebase:', error);
+                        alert('⚠️ Local history cleared, but there was an error deleting some sessions from Firebase. Check console for details.');
+                    }
+                } else if (sessions.length === 0) {
+                    alert('✅ History was already empty!');
+                } else {
+                    console.log('Firebase delete function not available - only local storage cleared');
                 }
             }
         }
@@ -1879,31 +1944,52 @@
             try {
                 updateSyncStatus('syncing', 'Connecting...');
 
-                // Check if user ID exists in localStorage
+                // Always sign in to Firebase (don't rely on stored userId)
+                const userCredential = await signInAnonymously(auth);
+                userId = userCredential.user.uid;
+                console.log('Firebase authenticated with user ID:', userId);
+                
+                // Check if this is a returning user
                 const savedUserId = localStorage.getItem('firebaseUserId');
+                const isNewUser = savedUserId !== userId;
+                
+                // Save current user ID
+                localStorage.setItem('firebaseUserId', userId);
+                updateSyncStatus('synced', 'Connected');
 
-                if (savedUserId) {
-                    userId = savedUserId;
-                    updateSyncStatus('synced', 'Connected');
-                    await syncFromCloud();
-                } else {
-                    // Sign in anonymously
-                    const userCredential = await signInAnonymously(auth);
-                    userId = userCredential.user.uid;
-                    localStorage.setItem('firebaseUserId', userId);
-                    updateSyncStatus('synced', 'Connected');
-
-                    // Migrate local data to cloud on first connection
+                if (isNewUser && savedUserId) {
+                    console.log('New Firebase user, migrating local data...');
                     await migrateLocalDataToCloud();
+                } else {
+                    await syncFromCloud();
                 }
 
                 // Set up real-time listeners
                 setupRealtimeSync();
 
             } catch (error) {
-                console.error('Authentication error:', error);
-                updateSyncStatus('offline', 'Connection failed');
-                // Fall back to localStorage
+                console.error('Firebase Authentication Error:', error);
+                console.error('Error Code:', error.code);
+                console.error('Error Message:', error.message);
+                
+                updateSyncStatus('offline', 'Firebase Failed');
+                
+                // Show specific error messages
+                let errorMsg = 'Firebase connection failed: ';
+                if (error.code === 'auth/network-request-failed') {
+                    errorMsg += 'Network connection issue';
+                } else if (error.code === 'auth/api-key-not-valid') {
+                    errorMsg += 'Invalid API key configuration';
+                } else if (error.code === 'auth/project-not-found') {
+                    errorMsg += 'Firebase project not found';
+                } else {
+                    errorMsg += error.message;
+                }
+                
+                console.warn(errorMsg);
+                alert('⚠️ ' + errorMsg + '\n\nApp will work in offline mode.');
+                
+                // Fall back to localStorage only
             }
         }
 
@@ -1937,15 +2023,31 @@
 
         // Sync sessions to cloud
         window.syncSessionToCloud = async function(session) {
-            if (!userId || !isOnline) return;
+            console.log('syncSessionToCloud called with:', session);
+            console.log('userId:', userId, 'isOnline:', isOnline);
+            
+            if (!userId) {
+                console.error('Cannot sync session: No Firebase userId available');
+                return;
+            }
+            
+            if (!isOnline) {
+                console.warn('Cannot sync session: Currently offline');
+                return;
+            }
 
             try {
+                console.log('Attempting to save session to Firebase...');
                 await setDoc(doc(db, `users/${userId}/sessions`, session.id.toString()), {
                     ...session,
                     syncedAt: serverTimestamp()
                 });
+                console.log('✅ Session successfully synced to Firebase!', session.id);
+                updateSyncStatus('synced', 'Synced');
             } catch (error) {
-                console.error('Error syncing session:', error);
+                console.error('❌ Error syncing session to Firebase:', error);
+                console.error('Error details:', error.message, error.code);
+                updateSyncStatus('offline', 'Sync failed');
             }
         };
 
@@ -1970,9 +2072,20 @@
 
         // Sync timer state to cloud (auto-save current session)
         window.syncTimerStateToCloud = async function() {
-            if (!userId || !isOnline) return;
+            console.log('syncTimerStateToCloud called');
+            console.log('userId:', userId, 'isOnline:', isOnline);
+            
+            if (!userId) {
+                console.error('❌ Cannot sync timer state: No Firebase userId');
+                return;
+            }
+            
+            if (!isOnline) {
+                console.warn('⚠️ Cannot sync timer state: Offline');
+                return;
+            }
 
-            // Don't wait for sync to complete - fire and forget for better responsiveness
+            // Build timer state object
             const timerState = {
                 sessionActive: window.sessionActive || false,
                 currentStatus: window.currentStatus || 'idle',
@@ -1985,10 +2098,18 @@
                 updatedAt: serverTimestamp()
             };
 
+            console.log('🔄 Syncing timer state to Firebase:', timerState);
+
             // Non-blocking sync
             setDoc(doc(db, `users/${userId}/state`, 'currentTimer'), timerState)
-                .then(() => console.log('Timer state synced to cloud'))
-                .catch(error => console.error('Error syncing timer state:', error));
+                .then(() => {
+                    console.log('✅ Timer state successfully synced to Firebase!');
+                    updateSyncStatus('synced', 'Timer Synced');
+                })
+                .catch(error => {
+                    console.error('❌ Error syncing timer state to Firebase:', error);
+                    updateSyncStatus('offline', 'Sync Failed');
+                });
         };
 
         // Load data from cloud
@@ -2047,6 +2168,8 @@
 
                     // Automatically restore active session
                     if (timerState.sessionActive && timerState.timerStartTime) {
+                        console.log('🔄 Restoring active timer session from Firebase...');
+                        console.log('Current sessionActive before restore:', window.sessionActive);
                         
                         // Restore timer state
                         window.sessionActive = true;
@@ -2072,9 +2195,14 @@
                         }
                         
                         // Start the display update interval (more responsive)
+                        if (interval) {
+                            console.warn('⚠️ Clearing existing interval during Firebase restore');
+                            clearInterval(interval);
+                        }
                         interval = setInterval(() => {
                             updateTimerFromTimestamps();
                         }, 100);
+                        console.log('✅ Timer interval restored from Firebase');
                         
                         // Animate timer restoration with counting effect
                         animateTimerRestore();
