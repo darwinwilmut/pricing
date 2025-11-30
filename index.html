@@ -2187,25 +2187,37 @@
 
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const tab = btn.dataset.tab;
 
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.summary-content').forEach(c => c.classList.remove('active'));
-
-                btn.classList.add('active');
-                document.getElementById(`${tab}-summary`).classList.add('active');
-
-                // Log action to Firebase
-                if (window.logAction) {
-                    window.logAction('ui_tab_switch', {
-                        timestamp: new Date().toISOString(),
-                        tab: tab
-                    });
-                }
+            startBtn.addEventListener('click', async () => {
+                startSession();
+                if (window.syncTimerStateToCloud) await window.syncTimerStateToCloud();
             });
-        });
 
+            stopBtn.addEventListener('click', async () => {
+                stopSession();
+                if (window.syncTimerStateToCloud) await window.syncTimerStateToCloud();
+            });
+
+            resetBtn.addEventListener('click', async function(e) {
+                resetTimer();
+                if (window.syncTimerStateToCloud) await window.syncTimerStateToCloud();
+            });
+
+            calculateBtn.addEventListener('click', async () => {
+                calculateAmount();
+                // Sessions are already synced in saveSession function
+                if (window.syncTimerStateToCloud) await window.syncTimerStateToCloud();
+            });
+
+            workBtn && workBtn.addEventListener('click', async () => {
+                resumeWork();
+                if (window.syncTimerStateToCloud) await window.syncTimerStateToCloud();
+            });
+
+            breakBtn && breakBtn.addEventListener('click', async () => {
+                takeBreak();
+                if (window.syncTimerStateToCloud) await window.syncTimerStateToCloud();
+            });
         // Event Listeners with real-time sync
         startBtn.addEventListener('click', () => {
             console.log('▶️ Start button clicked');
