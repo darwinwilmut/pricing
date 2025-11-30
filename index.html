@@ -190,6 +190,35 @@
             font-size: 12px;
         }
 
+        .last-earned {
+            text-align: center;
+            color: #10b981;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            cursor: default;
+            padding: 10px 20px;
+            border-radius: 25px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+            border: 2px solid rgba(16, 185, 129, 0.3);
+            display: inline-block;
+            width: auto;
+            margin-left: auto;
+            margin-right: auto;
+            box-shadow: 0 2px 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .last-earned::before {
+            content: '💰 ';
+            font-size: 14px;
+        }
+
+        .last-earned:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
         .timer-display {
             background: var(--timer-bg);
             color: var(--timer-text);
@@ -604,6 +633,28 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .session-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .session-list::-webkit-scrollbar-track {
+            background: var(--result-bg);
+            border-radius: 3px;
+        }
+
+        .session-list::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 3px;
+            opacity: 0.7;
+        }
+
+        .session-list::-webkit-scrollbar-thumb:hover {
+            opacity: 1;
         }
 
         .session-item {
@@ -890,6 +941,7 @@
         <div class="container timer-container">
             <h1>Freelance Timer</h1>
             <div class="rate-info" id="rateInfo" title="Click to change hourly rate">₹1,000 per hour</div>
+            <div class="last-earned" id="lastEarned" title="Your last session earnings">Last Earned: ₹0.00</div>
 
             <div class="status-indicator idle" id="statusIndicator">Ready to Start</div>
             <div class="timer-display" id="timerDisplay">00:00:00</div>
@@ -1015,6 +1067,12 @@
         window.sessionActive = false;
         window.currentStatus = 'idle'; // 'idle', 'working', 'on-break'
         window.soundEnabled = true;
+        
+        // Timestamp-based timer tracking
+        window.timerStartTime = null;
+        window.workStartTime = null;
+        window.lastBreakStart = null;
+        window.totalBreakTime = 0;
 
         // DOM Elements
         const timerDisplay = document.getElementById('timerDisplay');
@@ -1045,6 +1103,83 @@
         const sessionList = document.getElementById('sessionList');
         const clearHistoryBtn = document.getElementById('clearHistoryBtn');
         const searchBox = document.getElementById('searchBox');
+
+        // Last Earned Functions
+        function updateLastEarned(amount) {
+            const lastEarnedElement = document.getElementById('lastEarned');
+            lastEarnedElement.textContent = `Last Earned: ₹${amount.toFixed(2)}`;
+            
+            // Save to localStorage
+            localStorage.setItem('lastEarned', amount.toFixed(2));
+            
+            // Add animation effect
+            lastEarnedElement.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+                lastEarnedElement.style.transform = 'scale(1)';
+            }, 300);
+        }
+
+        function loadLastEarned() {
+            const saved = localStorage.getItem('lastEarned');
+            if (saved) {
+                document.getElementById('lastEarned').textContent = `Last Earned: ₹${saved}`;
+            }
+        }
+
+        // Animate timer restoration
+        function animateTimerRestore() {
+            updateTimerFromTimestamps(); // Get the target values first
+            const targetTotal = window.totalSeconds;
+            const targetWork = window.workSeconds + (window.currentStatus === 'working' && window.workStartTime ? 
+                Math.floor((new Date() - window.workStartTime) / 1000) : 0);
+            const targetBreak = window.breakSecondsAccumulated + (window.currentStatus === 'on-break' && window.lastBreakStart ? 
+                Math.floor((new Date() - window.lastBreakStart) / 1000) : 0);
+
+            // Start from zeros
+            let currentTotal = 0;
+            let currentWork = 0; 
+            let currentBreak = 0;
+
+            // Animation duration (2 seconds)
+            const duration = 2000;
+            const startTime = Date.now();
+
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Easing function for smooth animation
+                const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+                
+                currentTotal = Math.floor(targetTotal * easeOutQuart);
+                currentWork = Math.floor(targetWork * easeOutQuart);
+                currentBreak = Math.floor(targetBreak * easeOutQuart);
+
+                // Update displays
+                timerDisplay.textContent = formatTime(currentTotal);
+                workTimeDisplay.textContent = formatTime(currentWork);
+                breakTimeDisplay.textContent = formatTime(currentBreak);
+                billableTimeDisplay.textContent = formatTime(currentWork);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Ensure we end with exact values
+                    updateTimerFromTimestamps();
+                }
+            }
+
+            // Add restore animation styling
+            timerDisplay.style.color = '#10b981';
+            timerDisplay.style.transform = 'scale(1.05)';
+            
+            setTimeout(() => {
+                timerDisplay.style.color = '';
+                timerDisplay.style.transform = '';
+            }, duration + 500);
+
+            animate();
+        }
 
         // Hourly Rate Functions
         function updateRateDisplay() {
@@ -1190,11 +1325,41 @@
         }
 
         // Timer Functions
+        function updateTimerFromTimestamps() {
+            if (!window.sessionActive || !window.timerStartTime) return;
+            
+            const now = new Date();
+            const totalElapsed = Math.floor((now - window.timerStartTime) / 1000);
+            
+            // Calculate work time
+            let workTime = 0;
+            if (window.currentStatus === 'working' && window.workStartTime) {
+                const workElapsed = Math.floor((now - window.workStartTime) / 1000);
+                workTime = window.workSeconds + workElapsed;
+            } else {
+                workTime = window.workSeconds;
+            }
+            
+            // Calculate break time
+            let breakTime = window.totalBreakTime;
+            if (window.currentStatus === 'on-break' && window.lastBreakStart) {
+                const currentBreakTime = Math.floor((now - window.lastBreakStart) / 1000);
+                breakTime += currentBreakTime;
+            }
+            
+            // Update displays
+            timerDisplay.textContent = formatTime(totalElapsed);
+            workTimeDisplay.textContent = formatTime(workTime);
+            breakTimeDisplay.textContent = formatTime(breakTime);
+            billableTimeDisplay.textContent = formatTime(workTime);
+            
+            // Update global variables for other functions
+            window.totalSeconds = totalElapsed;
+            window.breakSecondsAccumulated = breakTime;
+        }
+        
         window.updateAllDisplays = function() {
-            timerDisplay.textContent = formatTime(window.totalSeconds);
-            workTimeDisplay.textContent = formatTime(window.workSeconds);
-            breakTimeDisplay.textContent = formatTime(window.breakSecondsAccumulated);
-            billableTimeDisplay.textContent = formatTime(window.workSeconds);
+            updateTimerFromTimestamps();
         }
 
         function updateStatus(status) {
@@ -1212,7 +1377,12 @@
 
         function startSession() {
             if (!window.sessionActive) {
+                const now = new Date();
                 window.sessionActive = true;
+                window.timerStartTime = now;
+                window.workStartTime = now;
+                window.totalBreakTime = 0;
+                
                 updateStatus('working');
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
@@ -1220,21 +1390,38 @@
                 workBtn.disabled = true;
                 result.classList.remove('show');
                 playSound('start');
+                
+                // Immediate display update
+                updateTimerFromTimestamps();
 
+                // Start the display update interval (more responsive)
                 interval = setInterval(() => {
-                    window.totalSeconds++;
-                    if (window.currentStatus === 'working') {
-                        window.workSeconds++;
-                    } else if (window.currentStatus === 'on-break') {
-                        window.breakSecondsAccumulated++;
-                    }
-                    window.updateAllDisplays();
-                }, 1000);
+                    updateTimerFromTimestamps();
+                }, 100);
+                
+                // Immediately sync to cloud
+                if (window.syncTimerStateToCloud) {
+                    window.syncTimerStateToCloud();
+                }
             }
         }
 
         function stopSession() {
             if (window.sessionActive) {
+                const now = new Date();
+                
+                // Calculate final times
+                if (window.currentStatus === 'working' && window.workStartTime) {
+                    const workElapsed = Math.floor((now - window.workStartTime) / 1000);
+                    window.workSeconds += workElapsed;
+                } else if (window.currentStatus === 'on-break' && window.lastBreakStart) {
+                    const breakElapsed = Math.floor((now - window.lastBreakStart) / 1000);
+                    window.totalBreakTime += breakElapsed;
+                }
+                
+                window.breakSecondsAccumulated = window.totalBreakTime;
+                
+                // Stop the session
                 window.sessionActive = false;
                 clearInterval(interval);
                 updateStatus('idle');
@@ -1243,42 +1430,119 @@
                 breakBtn.disabled = true;
                 workBtn.disabled = true;
                 playSound('stop');
+                
+                // Clear timer state from cloud
+                if (window.clearTimerStateFromCloud) {
+                    window.clearTimerStateFromCloud();
+                }
             }
         }
 
         function takeBreak() {
             if (window.sessionActive && window.currentStatus === 'working') {
+                const now = new Date();
+                
+                // Save current work time
+                if (window.workStartTime) {
+                    const workElapsed = Math.floor((now - window.workStartTime) / 1000);
+                    window.workSeconds += workElapsed;
+                }
+                
+                // Start break tracking
+                window.lastBreakStart = now;
                 updateStatus('on-break');
                 workBtn.disabled = false;
                 breakBtn.disabled = true;
+                
+                // Sync to cloud
+                if (window.syncTimerStateToCloud) {
+                    window.syncTimerStateToCloud();
+                }
             }
         }
 
         function resumeWork() {
             if (window.sessionActive && window.currentStatus === 'on-break') {
+                const now = new Date();
+                
+                // Save current break time
+                if (window.lastBreakStart) {
+                    const breakElapsed = Math.floor((now - window.lastBreakStart) / 1000);
+                    window.totalBreakTime += breakElapsed;
+                    window.lastBreakStart = null;
+                }
+                
+                // Start work tracking again
+                window.workStartTime = now;
                 updateStatus('working');
                 workBtn.disabled = true;
                 breakBtn.disabled = false;
+                
+                // Sync to cloud
+                if (window.syncTimerStateToCloud) {
+                    window.syncTimerStateToCloud();
+                }
             }
         }
 
         function resetTimer() {
-            stopSession();
+            console.log('Reset button clicked');
+            
+            // Stop any active session first
+            if (window.sessionActive) {
+                window.sessionActive = false;
+                if (interval) {
+                    clearInterval(interval);
+                    interval = null;
+                }
+            }
+            
+            // Reset all timer variables to zero
             window.totalSeconds = 0;
             window.workSeconds = 0;
             window.breakSecondsAccumulated = 0;
-            window.updateAllDisplays();
+            window.timerStartTime = null;
+            window.workStartTime = null;
+            window.lastBreakStart = null;
+            window.totalBreakTime = 0;
+            
+            // Reset UI state
+            updateStatus('idle');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('breakBtn').disabled = true;
+            document.getElementById('workBtn').disabled = true;
+            
+            // Clear displays and notes - force update to 00:00:00
+            timerDisplay.textContent = '00:00:00';
+            workTimeDisplay.textContent = '00:00:00';
+            breakTimeDisplay.textContent = '00:00:00';
+            billableTimeDisplay.textContent = '00:00:00';
             result.classList.remove('show');
-            sessionNotes.value = '';
+            document.getElementById('sessionNotes').value = '';
+            
+            // Clear from cloud
+            if (window.clearTimerStateFromCloud) {
+                window.clearTimerStateFromCloud();
+            }
+            
+            // Play reset sound
+            playSound('success');
+            
+            console.log('Timer reset completed - all values set to 0');
         }
 
         function calculateAmount() {
-            if (window.totalSeconds === 0) {
+            if (window.totalSeconds === 0 && !window.sessionActive) {
                 alert('Please track some time before saving a session!');
                 return;
             }
 
+            // Stop session and calculate final times
             stopSession();
+            
+            // Ensure we have the latest calculated times
+            updateTimerFromTimestamps();
 
             const billableHours = window.workSeconds / 3600;
             const amountINR = billableHours * window.HOURLY_RATE_INR;
@@ -1292,17 +1556,16 @@
             // Save session to history
             saveSession(window.totalSeconds, window.workSeconds, window.breakSecondsAccumulated, amountINR, amountGBP, sessionNotes.value);
 
+            // Update last earned display
+            updateLastEarned(amountINR);
+
             result.classList.add('show');
             playSound('success');
 
-            // Reset after showing result
+            // Reset after showing result (1 minute display)
             setTimeout(() => {
-                window.totalSeconds = 0;
-                window.workSeconds = 0;
-                window.breakSecondsAccumulated = 0;
-                window.updateAllDisplays();
-                sessionNotes.value = '';
-            }, 2000);
+                resetTimer();
+            }, 60000);
         }
 
         // Session History Functions
@@ -1355,7 +1618,24 @@
                 return;
             }
 
-            sessionList.innerHTML = filteredSessions.map(session => {
+            // If no search query, show only last 3 sessions with scroll info
+            const displaySessions = searchQuery ? filteredSessions : filteredSessions;
+            const showScrollInfo = !searchQuery && filteredSessions.length > 3;
+
+            let sessionHTML = '';
+            
+            // Add scroll info if there are more than 3 sessions and no search
+            if (showScrollInfo) {
+                sessionHTML += `
+                    <div class="scroll-info">
+                        <div style="text-align: center; padding: 10px; background: var(--result-bg); border-radius: 8px; margin-bottom: 12px; font-size: 12px; color: var(--text-secondary);">
+                            📜 Showing ${displaySessions.length} sessions • Scroll to view all
+                        </div>
+                    </div>
+                `;
+            }
+
+            sessionHTML += displaySessions.map(session => {
                 const date = new Date(session.date);
                 const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                 const timeStr = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -1381,6 +1661,8 @@
                     </div>
                 `;
             }).join('');
+
+            sessionList.innerHTML = sessionHTML;
         }
 
         function deleteSession(sessionId) {
@@ -1492,17 +1774,42 @@
         // Event Listeners
         startBtn.addEventListener('click', startSession);
         stopBtn.addEventListener('click', stopSession);
-        resetBtn.addEventListener('click', resetTimer);
+        resetBtn.addEventListener('click', function(e) {
+            console.log('Reset button event fired');
+            e.preventDefault();
+            e.stopPropagation();
+            resetTimer();
+        });
         calculateBtn.addEventListener('click', calculateAmount);
         workBtn.addEventListener('click', resumeWork);
         breakBtn.addEventListener('click', takeBreak);
         clearHistoryBtn.addEventListener('click', clearHistory);
 
         // Initialize
-        updateRateDisplay();
-        window.displaySessions();
-        window.updateSummaries();
-        window.updateAllDisplays();
+        console.log('Initializing timer application...');
+        try {
+            updateRateDisplay();
+            loadLastEarned();
+            window.displaySessions();
+            window.updateSummaries();
+            window.updateAllDisplays();
+            
+            // Backup reset button handler
+            const backupResetBtn = document.getElementById('resetBtn');
+            if (backupResetBtn) {
+                backupResetBtn.onclick = function() {
+                    console.log('Backup reset handler triggered');
+                    resetTimer();
+                };
+                console.log('Reset button found and backup handler attached');
+            } else {
+                console.error('Reset button not found!');
+            }
+            
+            console.log('Timer application initialized successfully');
+        } catch (error) {
+            console.error('Error initializing timer application:', error);
+        }
     </script>
 
     <!-- Firebase Integration -->
@@ -1665,21 +1972,23 @@
         window.syncTimerStateToCloud = async function() {
             if (!userId || !isOnline) return;
 
-            try {
-                const timerState = {
-                    totalSeconds: window.totalSeconds || 0,
-                    workSeconds: window.workSeconds || 0,
-                    breakSeconds: window.breakSecondsAccumulated || 0,
-                    sessionActive: window.sessionActive || false,
-                    currentStatus: window.currentStatus || 'idle',
-                    notes: document.getElementById('sessionNotes')?.value || '',
-                    updatedAt: serverTimestamp()
-                };
+            // Don't wait for sync to complete - fire and forget for better responsiveness
+            const timerState = {
+                sessionActive: window.sessionActive || false,
+                currentStatus: window.currentStatus || 'idle',
+                timerStartTime: window.timerStartTime ? window.timerStartTime.toISOString() : null,
+                workStartTime: window.workStartTime ? window.workStartTime.toISOString() : null,
+                lastBreakStart: window.lastBreakStart ? window.lastBreakStart.toISOString() : null,
+                workSeconds: window.workSeconds || 0,
+                totalBreakTime: window.totalBreakTime || 0,
+                notes: document.getElementById('sessionNotes')?.value || '',
+                updatedAt: serverTimestamp()
+            };
 
-                await setDoc(doc(db, `users/${userId}/state`, 'currentTimer'), timerState);
-            } catch (error) {
-                console.error('Error syncing timer state:', error);
-            }
+            // Non-blocking sync
+            setDoc(doc(db, `users/${userId}/state`, 'currentTimer'), timerState)
+                .then(() => console.log('Timer state synced to cloud'))
+                .catch(error => console.error('Error syncing timer state:', error));
         };
 
         // Load data from cloud
@@ -1736,13 +2045,44 @@
                 if (timerStateDoc.exists()) {
                     const timerState = timerStateDoc.data();
 
-                    // Ask user if they want to restore the timer
-                    if (timerState.totalSeconds > 0 && confirm('You have an unsaved session. Do you want to restore it?')) {
-                        window.totalSeconds = timerState.totalSeconds || 0;
+                    // Automatically restore active session
+                    if (timerState.sessionActive && timerState.timerStartTime) {
+                        
+                        // Restore timer state
+                        window.sessionActive = true;
+                        window.currentStatus = timerState.currentStatus || 'working';
+                        window.timerStartTime = timerState.timerStartTime ? new Date(timerState.timerStartTime) : null;
+                        window.workStartTime = timerState.workStartTime ? new Date(timerState.workStartTime) : null;
+                        window.lastBreakStart = timerState.lastBreakStart ? new Date(timerState.lastBreakStart) : null;
                         window.workSeconds = timerState.workSeconds || 0;
-                        window.breakSecondsAccumulated = timerState.breakSeconds || 0;
+                        window.totalBreakTime = timerState.totalBreakTime || 0;
                         document.getElementById('sessionNotes').value = timerState.notes || '';
-                        window.updateAllDisplays();
+                        
+                        // Update UI
+                        updateStatus(window.currentStatus);
+                        document.getElementById('startBtn').disabled = true;
+                        document.getElementById('stopBtn').disabled = false;
+                        
+                        if (window.currentStatus === 'working') {
+                            document.getElementById('breakBtn').disabled = false;
+                            document.getElementById('workBtn').disabled = true;
+                        } else if (window.currentStatus === 'on-break') {
+                            document.getElementById('breakBtn').disabled = true;
+                            document.getElementById('workBtn').disabled = false;
+                        }
+                        
+                        // Start the display update interval (more responsive)
+                        interval = setInterval(() => {
+                            updateTimerFromTimestamps();
+                        }, 100);
+                        
+                        // Animate timer restoration with counting effect
+                        animateTimerRestore();
+                        
+                        console.log('Timer session restored successfully');
+                    } else if (!timerState.sessionActive && timerState.timerStartTime) {
+                        // Clear completed session from cloud
+                        await deleteDoc(doc(db, `users/${userId}/state`, 'currentTimer'));
                     }
                 }
 
@@ -1791,6 +2131,18 @@
             }
         }
 
+        // Clear timer state from cloud
+        window.clearTimerStateFromCloud = async function() {
+            if (!userId || !isOnline) return;
+
+            try {
+                await deleteDoc(doc(db, `users/${userId}/state`, 'currentTimer'));
+                console.log('Timer state cleared from cloud');
+            } catch (error) {
+                console.error('Error clearing timer state:', error);
+            }
+        };
+
         // Delete session from cloud
         window.deleteSessionFromCloud = async function(sessionId) {
             if (!userId || !isOnline) return;
@@ -1802,12 +2154,20 @@
             }
         };
 
-        // Auto-save timer state every 30 seconds
+        // Auto-save timer state every 5 seconds for active sessions
         setInterval(() => {
             if (window.sessionActive && userId && isOnline) {
                 syncTimerStateToCloud();
             }
-        }, 30000);
+        }, 5000);
+        
+        // Also sync when page is about to unload
+        window.addEventListener('beforeunload', () => {
+            if (window.sessionActive && window.syncTimerStateToCloud) {
+                // Use sendBeacon for reliable sync on page unload
+                syncTimerStateToCloud();
+            }
+        });
 
         // Initialize Firebase authentication
         authenticateUser();
