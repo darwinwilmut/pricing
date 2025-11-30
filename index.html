@@ -830,7 +830,173 @@
             font-style: italic;
         }
 
+        /* PIN Modal Styles */
+        .pin-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .pin-modal-content {
+            background: var(--container-bg);
+            padding: 40px 35px;
+            border-radius: 20px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pin-input {
+            width: 100%;
+            padding: 18px 20px;
+            font-size: 24px;
+            text-align: center;
+            border: 3px solid var(--border-color);
+            border-radius: 15px;
+            background: var(--result-bg);
+            color: var(--text-color);
+            font-weight: bold;
+            letter-spacing: 8px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+
+        .pin-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            transform: scale(1.02);
+        }
+
+        .pin-submit-btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #10f544, #00d418);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(16, 245, 68, 0.4);
+        }
+
+        .pin-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(16, 245, 68, 0.6);
+        }
+
+        .pin-submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .pin-secondary-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--result-bg);
+            color: var(--text-color);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 12px;
+        }
+
+        .pin-secondary-btn:hover {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .pin-close-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            background: transparent;
+            color: var(--text-secondary);
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 12px;
+        }
+
+        .pin-close-btn:hover {
+            color: var(--text-color);
+        }
+
+        .pin-indicator {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: var(--accent-color);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.3s ease, background 0.3s ease;
+            z-index: 1001;
+            box-shadow: 0 2px 10px var(--shadow);
+            color: white;
+            font-weight: 600;
+        }
+
+        .pin-indicator:hover {
+            transform: scale(1.1);
+        }
+
         @media (max-width: 768px) {
+            .pin-modal-content {
+                padding: 30px 25px;
+            }
+
+            .pin-input {
+                font-size: 20px;
+                letter-spacing: 6px;
+                padding: 15px;
+            }
+
+            .pin-indicator {
+                top: 55px;
+                left: 10px;
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+
             body {
                 padding: 15px;
                 padding-top: 80px;
@@ -940,11 +1106,41 @@
     </style>
 </head>
 <body>
+    <button class="pin-indicator" id="pinIndicator" title="Manage PIN">🔐 PIN</button>
     <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
     <button class="sound-toggle" id="soundToggle" title="Toggle sound">🔊</button>
     <div class="sync-indicator" id="syncIndicator">
         <span id="syncIcon">☁️</span>
         <span id="syncText">Connecting...</span>
+    </div>
+
+    <!-- PIN Authentication Modal -->
+    <div id="pinModal" class="pin-modal" style="display: none;">
+        <div class="pin-modal-content">
+            <h2 style="text-align: center; margin-bottom: 20px; color: var(--text-color);">🔐 Secure Your Timer</h2>
+            <p style="text-align: center; margin-bottom: 25px; color: var(--text-secondary); line-height: 1.6;">
+                Create a PIN to sync your timer across all your devices. Use the same PIN on your phone, tablet, and computer to access your data.
+            </p>
+
+            <div id="pinCreateView">
+                <input type="tel" id="pinInput" class="pin-input" placeholder="Enter 4-6 digit PIN" maxlength="6" pattern="[0-9]*">
+                <button id="pinSubmitBtn" class="pin-submit-btn">Create PIN & Start</button>
+            </div>
+
+            <div id="pinSignInView" style="display: none;">
+                <input type="tel" id="pinSignInInput" class="pin-input" placeholder="Enter your PIN" maxlength="6" pattern="[0-9]*">
+                <button id="pinSignInBtn" class="pin-submit-btn">Sign In</button>
+                <button id="pinNewUserBtn" class="pin-secondary-btn">New User? Create PIN</button>
+            </div>
+
+            <div id="pinChangeView" style="display: none;">
+                <p style="text-align: center; margin-bottom: 15px; color: var(--text-secondary);">Your Current PIN</p>
+                <div id="currentPinDisplay" style="text-align: center; font-size: 24px; font-weight: bold; color: var(--accent-color); margin-bottom: 20px;">****</div>
+                <button id="pinChangePinBtn" class="pin-secondary-btn">Change PIN</button>
+                <button id="pinLogoutBtn" class="pin-secondary-btn">Sign Out</button>
+                <button id="pinCloseBtn" class="pin-close-btn">Close</button>
+            </div>
+        </div>
     </div>
 
     <div class="main-container">
@@ -1881,7 +2077,7 @@
     <script type="module">
         // Import Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
         // Firebase configuration
@@ -1910,6 +2106,221 @@
         const syncIndicator = document.getElementById('syncIndicator');
         const syncIcon = document.getElementById('syncIcon');
         const syncText = document.getElementById('syncText');
+        const pinModal = document.getElementById('pinModal');
+        const pinIndicator = document.getElementById('pinIndicator');
+        const pinInput = document.getElementById('pinInput');
+        const pinSubmitBtn = document.getElementById('pinSubmitBtn');
+        const pinSignInInput = document.getElementById('pinSignInInput');
+        const pinSignInBtn = document.getElementById('pinSignInBtn');
+        const pinNewUserBtn = document.getElementById('pinNewUserBtn');
+        const pinCreateView = document.getElementById('pinCreateView');
+        const pinSignInView = document.getElementById('pinSignInView');
+        const pinChangeView = document.getElementById('pinChangeView');
+        const currentPinDisplay = document.getElementById('currentPinDisplay');
+        const pinChangePinBtn = document.getElementById('pinChangePinBtn');
+        const pinLogoutBtn = document.getElementById('pinLogoutBtn');
+        const pinCloseBtn = document.getElementById('pinCloseBtn');
+
+        // PIN helper functions
+        function pinToEmail(pin) {
+            return `pin${pin}@timer.local`;
+        }
+
+        function showPinModal(view = 'create') {
+            pinModal.style.display = 'flex';
+            pinCreateView.style.display = 'none';
+            pinSignInView.style.display = 'none';
+            pinChangeView.style.display = 'none';
+
+            if (view === 'create') {
+                pinCreateView.style.display = 'block';
+                pinInput.value = '';
+                setTimeout(() => pinInput.focus(), 100);
+            } else if (view === 'signin') {
+                pinSignInView.style.display = 'block';
+                pinSignInInput.value = '';
+                setTimeout(() => pinSignInInput.focus(), 100);
+            } else if (view === 'manage') {
+                pinChangeView.style.display = 'block';
+                const savedPin = localStorage.getItem('userPin');
+                currentPinDisplay.textContent = savedPin || '****';
+            }
+        }
+
+        function hidePinModal() {
+            pinModal.style.display = 'none';
+        }
+
+        // PIN Modal Event Listeners
+        pinIndicator.addEventListener('click', () => {
+            if (userId) {
+                showPinModal('manage');
+            } else {
+                showPinModal('signin');
+            }
+        });
+
+        pinSubmitBtn.addEventListener('click', () => createPinAndSignIn());
+        pinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') createPinAndSignIn();
+        });
+
+        pinSignInBtn.addEventListener('click', () => signInWithPin());
+        pinSignInInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') signInWithPin();
+        });
+
+        pinNewUserBtn.addEventListener('click', () => showPinModal('create'));
+
+        pinChangePinBtn.addEventListener('click', () => {
+            hidePinModal();
+            setTimeout(() => {
+                const newPin = prompt('Enter your new PIN (4-6 digits):');
+                if (newPin && /^\d{4,6}$/.test(newPin)) {
+                    changePinInFirebase(newPin);
+                } else if (newPin) {
+                    alert('PIN must be 4-6 digits');
+                }
+            }, 300);
+        });
+
+        pinLogoutBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to sign out? Your data will remain safe in the cloud.')) {
+                signOutUser();
+            }
+        });
+
+        pinCloseBtn.addEventListener('click', () => hidePinModal());
+
+        // Create PIN and sign in
+        async function createPinAndSignIn() {
+            const pin = pinInput.value.trim();
+
+            if (!/^\d{4,6}$/.test(pin)) {
+                alert('Please enter a 4-6 digit PIN');
+                return;
+            }
+
+            try {
+                updateSyncStatus('syncing', 'Creating account...');
+                console.log('🔐 Creating new account with PIN...');
+
+                const email = pinToEmail(pin);
+                const password = pin + '_secure_' + pin; // More secure password
+
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                userId = userCredential.user.uid;
+
+                console.log('✅ Account created successfully!', userId);
+
+                localStorage.setItem('userPin', pin);
+                localStorage.setItem('firebaseUserId', userId);
+
+                hidePinModal();
+                updateSyncStatus('synced', 'Connected');
+
+                // Migrate local data to new account
+                await migrateLocalDataToCloud();
+
+                // Set up real-time listeners
+                setupRealtimeSync();
+
+                alert('✅ PIN created successfully! Use this PIN on all your devices to sync.');
+            } catch (error) {
+                console.error('❌ Error creating account:', error);
+
+                if (error.code === 'auth/email-already-in-use') {
+                    // PIN already exists, try to sign in
+                    console.log('PIN already exists, attempting sign in...');
+                    pinInput.value = '';
+                    showPinModal('signin');
+                    pinSignInInput.value = pin;
+                    alert('This PIN already exists. Please sign in instead.');
+                } else {
+                    alert('Error creating PIN: ' + error.message);
+                    updateSyncStatus('offline', 'Failed');
+                }
+            }
+        }
+
+        // Sign in with PIN
+        async function signInWithPin() {
+            const pin = pinSignInInput.value.trim();
+
+            if (!/^\d{4,6}$/.test(pin)) {
+                alert('Please enter a valid 4-6 digit PIN');
+                return;
+            }
+
+            try {
+                updateSyncStatus('syncing', 'Signing in...');
+                console.log('🔐 Signing in with PIN...');
+
+                const email = pinToEmail(pin);
+                const password = pin + '_secure_' + pin;
+
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                userId = userCredential.user.uid;
+
+                console.log('✅ Signed in successfully!', userId);
+
+                localStorage.setItem('userPin', pin);
+                localStorage.setItem('firebaseUserId', userId);
+
+                hidePinModal();
+                updateSyncStatus('synced', 'Connected');
+
+                // Load data from cloud
+                await syncFromCloud();
+
+                // Set up real-time listeners
+                setupRealtimeSync();
+
+            } catch (error) {
+                console.error('❌ Error signing in:', error);
+
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                    alert('❌ Incorrect PIN. Please try again or create a new PIN.');
+                } else {
+                    alert('Error signing in: ' + error.message);
+                }
+
+                updateSyncStatus('offline', 'Sign in failed');
+            }
+        }
+
+        // Change PIN
+        async function changePinInFirebase(newPin) {
+            try {
+                alert('To change your PIN, please:\n1. Sign out\n2. Create a new PIN\n3. Manually transfer your data\n\nThis limitation ensures your data security.');
+            } catch (error) {
+                console.error('Error changing PIN:', error);
+            }
+        }
+
+        // Sign out
+        async function signOutUser() {
+            try {
+                await signOut(auth);
+                userId = null;
+                localStorage.removeItem('userPin');
+                localStorage.removeItem('firebaseUserId');
+
+                updateSyncStatus('offline', 'Signed out');
+                hidePinModal();
+
+                // Optionally clear local data
+                if (confirm('Do you want to clear your local data as well?')) {
+                    localStorage.clear();
+                    location.reload();
+                } else {
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Error signing out:', error);
+                alert('Error signing out: ' + error.message);
+            }
+        }
 
         // Update sync indicator
         function updateSyncStatus(status, message) {
@@ -1939,57 +2350,93 @@
             updateSyncStatus('offline', 'Offline');
         });
 
-        // Authenticate user anonymously
+        // Authenticate user with PIN
         async function authenticateUser() {
             try {
-                updateSyncStatus('syncing', 'Connecting...');
+                console.log('🔐 Starting authentication...');
+                console.log('🌍 Current domain:', window.location.hostname);
 
-                // Always sign in to Firebase (don't rely on stored userId)
-                const userCredential = await signInAnonymously(auth);
-                userId = userCredential.user.uid;
-                console.log('Firebase authenticated with user ID:', userId);
-                
-                // Check if this is a returning user
-                const savedUserId = localStorage.getItem('firebaseUserId');
-                const isNewUser = savedUserId !== userId;
-                
-                // Save current user ID
-                localStorage.setItem('firebaseUserId', userId);
-                updateSyncStatus('synced', 'Connected');
+                // Check if user has saved PIN
+                const savedPin = localStorage.getItem('userPin');
 
-                if (isNewUser && savedUserId) {
-                    console.log('New Firebase user, migrating local data...');
-                    await migrateLocalDataToCloud();
+                if (savedPin && /^\d{4,6}$/.test(savedPin)) {
+                    console.log('📱 Found saved PIN, attempting auto sign-in...');
+                    updateSyncStatus('syncing', 'Signing in...');
+
+                    try {
+                        const email = pinToEmail(savedPin);
+                        const password = savedPin + '_secure_' + savedPin;
+
+                        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                        userId = userCredential.user.uid;
+
+                        console.log('✅ Auto sign-in successful!', userId);
+                        localStorage.setItem('firebaseUserId', userId);
+                        updateSyncStatus('synced', 'Connected');
+
+                        // Load data from cloud
+                        console.log('📥 Syncing from cloud...');
+                        await syncFromCloud();
+
+                        // Set up real-time listeners
+                        console.log('👂 Setting up real-time listeners...');
+                        setupRealtimeSync();
+                        console.log('✅ Firebase initialization complete!');
+
+                    } catch (signInError) {
+                        console.error('❌ Auto sign-in failed:', signInError);
+
+                        // Clear invalid PIN
+                        localStorage.removeItem('userPin');
+                        localStorage.removeItem('firebaseUserId');
+
+                        // Show PIN modal
+                        updateSyncStatus('offline', 'Sign in required');
+                        showPinModal('signin');
+                    }
                 } else {
-                    await syncFromCloud();
+                    // No saved PIN, show create PIN modal
+                    console.log('ℹ️ No saved PIN found, showing PIN creation modal...');
+                    updateSyncStatus('offline', 'Not signed in');
+
+                    // Check if we should auto-show the modal or wait for user
+                    const hasLocalData = localStorage.getItem('sessions') || localStorage.getItem('hourlyRate');
+
+                    if (hasLocalData) {
+                        // Has local data, show signin option first
+                        showPinModal('signin');
+                    } else {
+                        // New user, show create option
+                        showPinModal('create');
+                    }
                 }
 
-                // Set up real-time listeners
-                setupRealtimeSync();
-
             } catch (error) {
-                console.error('Firebase Authentication Error:', error);
+                console.error('❌ Authentication Error:', error);
                 console.error('Error Code:', error.code);
                 console.error('Error Message:', error.message);
-                
-                updateSyncStatus('offline', 'Firebase Failed');
-                
+                console.error('Error Stack:', error.stack);
+
+                updateSyncStatus('offline', 'Auth Failed');
+
                 // Show specific error messages
-                let errorMsg = 'Firebase connection failed: ';
+                let errorMsg = 'Authentication failed: ';
                 if (error.code === 'auth/network-request-failed') {
                     errorMsg += 'Network connection issue';
                 } else if (error.code === 'auth/api-key-not-valid') {
                     errorMsg += 'Invalid API key configuration';
                 } else if (error.code === 'auth/project-not-found') {
                     errorMsg += 'Firebase project not found';
+                } else if (error.code === 'auth/unauthorized-domain') {
+                    errorMsg += 'Domain not authorized in Firebase. Add "' + window.location.hostname + '" to Firebase Console > Authentication > Settings > Authorized domains';
                 } else {
                     errorMsg += error.message;
                 }
-                
-                console.warn(errorMsg);
-                alert('⚠️ ' + errorMsg + '\n\nApp will work in offline mode.');
-                
-                // Fall back to localStorage only
+
+                console.warn('⚠️', errorMsg);
+
+                // Show PIN modal anyway for offline mode
+                showPinModal('create');
             }
         }
 
@@ -2114,15 +2561,21 @@
 
         // Load data from cloud
         async function syncFromCloud() {
-            if (!userId) return;
+            if (!userId) {
+                console.warn('⚠️ Cannot sync from cloud: No userId');
+                return;
+            }
 
             try {
+                console.log('📥 Starting syncFromCloud for user:', userId);
                 updateSyncStatus('syncing', 'Loading data...');
 
                 // Load settings
+                console.log('⚙️ Loading settings from Firestore...');
                 const settingsDoc = await getDoc(doc(db, `users/${userId}/settings`, 'preferences'));
                 if (settingsDoc.exists()) {
                     const settings = settingsDoc.data();
+                    console.log('✅ Settings loaded:', settings);
 
                     // Apply settings
                     if (settings.hourlyRate) {
@@ -2145,32 +2598,47 @@
                         soundToggle.textContent = settings.soundEnabled ? '🔊' : '🔇';
                         soundToggle.classList.toggle('muted', !settings.soundEnabled);
                     }
+                } else {
+                    console.log('ℹ️ No settings found in cloud');
                 }
 
                 // Load sessions
+                console.log('📚 Loading sessions from Firestore...');
                 const sessionsQuery = query(collection(db, `users/${userId}/sessions`), orderBy('date', 'desc'));
                 const sessionsSnapshot = await getDocs(sessionsQuery);
                 const cloudSessions = [];
                 sessionsSnapshot.forEach((doc) => {
                     cloudSessions.push(doc.data());
                 });
+                console.log(`✅ Loaded ${cloudSessions.length} sessions from cloud`);
 
                 if (cloudSessions.length > 0) {
                     localStorage.setItem('sessions', JSON.stringify(cloudSessions));
                     window.displaySessions();
                     window.updateSummaries();
+                    console.log('✅ Sessions synced to localStorage and UI updated');
+                } else {
+                    console.log('ℹ️ No sessions found in cloud');
                 }
 
                 // Load timer state
+                console.log('⏱️ Loading timer state from Firestore...');
                 const timerStateDoc = await getDoc(doc(db, `users/${userId}/state`, 'currentTimer'));
                 if (timerStateDoc.exists()) {
                     const timerState = timerStateDoc.data();
+                    console.log('✅ Timer state loaded:', timerState);
 
                     // Automatically restore active session
                     if (timerState.sessionActive && timerState.timerStartTime) {
                         console.log('🔄 Restoring active timer session from Firebase...');
-                        console.log('Current sessionActive before restore:', window.sessionActive);
-                        
+                        console.log('📊 Timer state details:', {
+                            sessionActive: timerState.sessionActive,
+                            currentStatus: timerState.currentStatus,
+                            timerStartTime: timerState.timerStartTime,
+                            workSeconds: timerState.workSeconds,
+                            totalBreakTime: timerState.totalBreakTime
+                        });
+
                         // Restore timer state
                         window.sessionActive = true;
                         window.currentStatus = timerState.currentStatus || 'working';
@@ -2180,12 +2648,12 @@
                         window.workSeconds = timerState.workSeconds || 0;
                         window.totalBreakTime = timerState.totalBreakTime || 0;
                         document.getElementById('sessionNotes').value = timerState.notes || '';
-                        
+
                         // Update UI
                         updateStatus(window.currentStatus);
                         document.getElementById('startBtn').disabled = true;
                         document.getElementById('stopBtn').disabled = false;
-                        
+
                         if (window.currentStatus === 'working') {
                             document.getElementById('breakBtn').disabled = false;
                             document.getElementById('workBtn').disabled = true;
@@ -2193,7 +2661,7 @@
                             document.getElementById('breakBtn').disabled = true;
                             document.getElementById('workBtn').disabled = false;
                         }
-                        
+
                         // Start the display update interval (more responsive)
                         if (interval) {
                             console.warn('⚠️ Clearing existing interval during Firebase restore');
@@ -2203,20 +2671,27 @@
                             updateTimerFromTimestamps();
                         }, 100);
                         console.log('✅ Timer interval restored from Firebase');
-                        
+
                         // Animate timer restoration with counting effect
                         animateTimerRestore();
-                        
-                        console.log('Timer session restored successfully');
+
+                        console.log('✅ Timer session restored successfully!');
                     } else if (!timerState.sessionActive && timerState.timerStartTime) {
-                        // Clear completed session from cloud
+                        console.log('🗑️ Clearing completed session from cloud');
                         await deleteDoc(doc(db, `users/${userId}/state`, 'currentTimer'));
+                    } else {
+                        console.log('ℹ️ No active timer session to restore');
                     }
+                } else {
+                    console.log('ℹ️ No timer state found in cloud');
                 }
 
+                console.log('✅ syncFromCloud completed successfully');
                 updateSyncStatus('synced', 'Synced');
             } catch (error) {
-                console.error('Error loading from cloud:', error);
+                console.error('❌ Error loading from cloud:', error);
+                console.error('Error code:', error.code);
+                console.error('Error message:', error.message);
                 updateSyncStatus('offline', 'Sync failed');
             }
         }
